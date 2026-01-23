@@ -1,6 +1,7 @@
 package com.example.order_services.Controller;
 
 import com.example.order_services.DTO.OrderRequest;
+import com.example.order_services.Model.Order;
 import com.example.order_services.Services.OrderServices;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -11,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -32,5 +34,12 @@ public class OrderController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @GetMapping
+    public ResponseEntity<List<Order>> getAllOrders() {
+        List<Order> orders = orderServices.getAllOrders();
+        return ResponseEntity.ok(orders);
+    }
+
 }
 
