@@ -1,13 +1,12 @@
 package com.example.order_services.DTO;
 
-
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Data;
 
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
 public class InventoryResponse {
     private String skuCode;
-    private boolean isInStock; // Consistent naming
+
+    @JsonProperty("inStock")
+    private boolean inStock;
 }

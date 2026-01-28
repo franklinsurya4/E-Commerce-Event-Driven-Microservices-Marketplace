@@ -9,9 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -22,54 +20,57 @@ public class OrderServices {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
 
-    public String placeOrder(OrderRequest orderRequest) {
+    public String placeOrder(OrderRequest request) {
+
+        if (request == null || request.getOrderLineItemsDtoList() == null
+                || request.getOrderLineItemsDtoList().isEmpty()) {
+            return "Invalid order request";
+        }
+
         Order order = new Order();
         order.setOrderNumber(UUID.randomUUID().toString());
 
-        List<OrderLineItems> orderLineItems = orderRequest.getOrderLineItemsDtoList()
+        List<OrderLineItems> items = request.getOrderLineItemsDtoList()
                 .stream()
-                .map(this::mapToDto)
+                .map(dto -> {
+                    OrderLineItems i = new OrderLineItems();
+                    i.setSkuCode(dto.getSkuCode());
+                    i.setPrice(dto.getPrice());
+                    i.setQuantity(dto.getQuantity());
+                    return i;
+                })
                 .toList();
 
-        order.setOrderLineItemsList(orderLineItems);
+        order.setOrderLineItemsList(items);
 
-        List<String> skuCodes = order.getOrderLineItemsList().stream()
+        List<String> skuCodes = items.stream()
                 .map(OrderLineItems::getSkuCode)
                 .toList();
 
-        // Call Inventory Service using Service Discovery name
-        InventoryResponse[] inventoryResponseArray = webClientBuilder.build().get()
+        InventoryResponse[] response = webClientBuilder.build()
+                .get()
                 .uri("http://inventory-service/api/inventory",
                         uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
                 .retrieve()
                 .bodyToMono(InventoryResponse[].class)
                 .block();
 
-        if (inventoryResponseArray == null) {
-            throw new IllegalStateException("Inventory service returned no data");
+        if (response == null || response.length == 0) {
+            return "Inventory service unavailable";
         }
 
-        boolean allProductsInStock = Arrays.stream(inventoryResponseArray)
+        boolean allInStock = Arrays.stream(response)
                 .allMatch(InventoryResponse::isInStock);
 
-        // Crucial check: Ensure we got a response for EVERY SKU we asked for
-        if (allProductsInStock && inventoryResponseArray.length == skuCodes.size()) {
-            orderRepository.save(order);
-            log.info("Order {} saved successfully", order.getOrderNumber());
-            return "Order Placed Successfully";
-        } else {
-            throw new IllegalArgumentException("Product is not in stock, please try again later");
+        if (!allInStock) {
+            return "Product out of stock";
         }
+
+        orderRepository.save(order);
+        return "Order placed successfully";
     }
 
-    private OrderLineItems mapToDto(OrderLineItemsDto dto) {
-        OrderLineItems items = new OrderLineItems();
-        items.setPrice(dto.getPrice());
-        items.setQuantity(dto.getQuantity());
-        items.setSkuCode(dto.getSkuCode());
-        return items;
-    }
-
+    // 🔥 THIS WAS MISSING
     public List<Order> getAllOrders() {
         return orderRepository.findAll();
     }
